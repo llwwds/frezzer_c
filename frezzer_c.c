@@ -13,7 +13,7 @@ typedef struct food {
     char food_type[100];  // 食物种类（如蔬菜、肉类、水果）
     int food_volume;  // 食物体积
     int food_temperature;  // 食物保存的温度
-} food;
+}food;
 
 // 结构体：链表节点
 typedef struct node {
@@ -29,11 +29,6 @@ typedef struct frezzer {
     int frezzer_available_volume;  // 冰柜的可用容积
 } frezzer;
 
-/*
- * 函数：frezzer_init
- * 功能：初始化冰柜结构体，设置初始值
- * 参数：f - 指向需要初始化的冰柜结构体的指针
- */
 void frezzer_init(frezzer* f) {  // 初始化冰柜结构体
     f->head = NULL;  // 初始化头指针为空
     f->tail = NULL;  // 初始化尾指针为空
@@ -43,6 +38,8 @@ void frezzer_init(frezzer* f) {  // 初始化冰柜结构体
 
 node* create_node(node** head, node** tail) {  //新建链节并尾插，传入head和tail的二级指针
     node* temp = (node*)malloc(sizeof(node)); // 新建节点
+    temp->next = NULL; // 仅初始化指针
+
     if (*head == NULL) {
         // 如果链表为空，head和tail指向新节点
         *head = temp;
@@ -53,21 +50,14 @@ node* create_node(node** head, node** tail) {  //新建链节并尾插，传入h
         *tail = temp;
     }
 
-    // 初始化新节点的数据域
-    strcpy(temp->data.food_name, "NONE");
-    temp->data.food_temperature = 0;
-    strcpy(temp->data.food_type, "NONE");
-    temp->data.food_volume = 0;
-    temp->next = NULL;
-
     return temp;  // 返回指向新节点的指针
 }
 
 
 void free_list(node* head) {  //释放整个链表，不释放头指针（在frezzer里），传入头指针
-    for (node *current = head, *next; current != NULL; current = next) { // 当前处理的节点
-        next = current->next;  // 保存下一个节点的地址
-        free(current);  // 释放当前节点
+    for (node *temp = head, *next; temp != NULL; temp = next) { // 当前处理的节点
+        next = temp->next;  // 保存下一个节点的地址
+        free(temp);  // 释放当前节点
     }
 }
 
@@ -86,46 +76,35 @@ void calculate_freezer_status(frezzer* f) {  // 计算冰柜的剩余容积和�
     f->frezzer_temperature=min_temp;// 更新冰柜温度
 }
 
-int cmp(const void *a, const void *b) {  // qsort用的排序函数
-    // 将 void* 指针转换为 food* 指针
-    const food *food_a = (const food *)a;
-    const food *food_b = (const food *)b;
-    
-    // 降序排序：如果 a.volume < b.volume，则返回正数（表示 a 应该排在 b 后面）
-    // 本质上是：b.volume - a.volume
-    if (food_a->food_volume <= food_b->food_volume){
-        return 1;
-    }else{
-        return -1;
-    }
+int cmp(const void *a, const void *b) {  // qsort排序单链表用的排序函数
+    const food *food_a = a, *food_b = b;
+    return food_b->food_volume - food_a->food_volume; // 降序排序
 }
 
 void sort_food_list(frezzer* f) {  //对冰柜中的食物按照体积进行 降序排序 传入指向冰柜变量的指针
     if (f->head == NULL || f->head->next == NULL) return; // 若为空链表/单节点，不用排序
 
     food temp_data[100];  // 暂时记录链表中全部数据
-    int tag=0;  // 临时变量，用两次
+    int tag = 0;  // 临时变量，用两次
 
-    for(int i=0;i<100;i++)  // 初始化数组
-    {
-        temp_data[i].food_volume=0;
+    // 1. 复制链表数据到数组（无初始化）
+    for (node* temp = f->head; temp != NULL; temp = temp->next) {
+        temp_data[tag++] = temp->data;
     }
 
-    for(node*temp=f->head;temp!=NULL;temp=temp->next){  // 将链表中全部数据都写入数组
-        temp_data[tag]=temp->data;
-        tag++;
-    }
-    qsort(temp_data, 100, sizeof(food), cmp);  // 对数组用qsort排序
-    tag=0;
-    for(node*temp=f->head;temp!=NULL;temp=temp->next){  // 将降序排序的数组从前往后写回链表
-        temp->data=temp_data[tag];
-        tag++;
+    // 2. 用实际节点数 tag 替代固定 100
+    qsort(temp_data, tag, sizeof(food), cmp);
+
+    // 3. 复制回链表
+    tag = 0;
+    for (node* temp = f->head; temp != NULL; temp = temp->next) {
+        temp->data = temp_data[tag++];
     }
 }
 
 void save_freezer_to_file(char* filepath, frezzer* f) {  // 将链表中的内容写入文件，传入：文件路径 指向冰柜结构体的指针
     FILE* fp = fopen(filepath, "w");  // 以写模式打开文件
-    if (fp == NULL) {  // 若找不到，报错
+    if (fp == NULL) {  // 若找不到，则报错并返回
         printf("Error: Cannot save file %s\n", filepath);
         return;
     }
@@ -141,18 +120,17 @@ void save_freezer_to_file(char* filepath, frezzer* f) {  // 将链表中的内�
 }
 
 void load_freezer_from_file(char* filepath, frezzer* f) {  // 读取指定文件，生成链表，并加载数据到链表中，传入：文件路径 指向冰柜结构体的指针
-    frezzer_init(f); // 先初始化冰柜（清空旧数据）
-    FILE* fp = fopen(filepath, "r"); // 以读模式打开文件
+    frezzer_init(f); // 先初始化冰柜
+    FILE* fp = fopen(filepath, "r"); // 以读模式打开文件，FILE为读取文件用的数据类型
     if (fp == NULL) {
         // 如果文件不存在，则报错并返回
         printf("Error: Cannot find file %s\n", filepath);
         return;
     }
 
-    char name[100], type[100];  // 存读取到的名称和类型
-    int vol, temp;  // 存读取到的体积和温度
-
-    for (; fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4; ) {  // 循环读取文件内容，每次读取4项数据
+    char name[100], type[100];  // 记录读到的名称和类型
+    int vol, temp;  // 记录读到的体积和温度
+    for (; fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4; ) {  // 循环读取文件内容，每次读取4项（一行）数据
         node* new_node = create_node(&(f->head), &(f->tail)); // 创建新节点，接下来读取并将内容写入新节点中
         strcpy(new_node->data.food_name, name);
         strcpy(new_node->data.food_type, type);
@@ -171,30 +149,32 @@ void show_maininterface() {  // 显示一级菜单
     printf("\n");
 
     warehouse_number = 0;  // 重置仓库计数
-    DIR *dir = opendir("data"); // 打开data目录
-    if (dir) {
-        struct dirent *entry; // 目录项指针
-        for (entry = readdir(dir); entry != NULL; entry = readdir(dir)) {
-            struct stat st; // 文件状态结构体
-            char path[512]; // 路径缓冲区
-            sprintf(path, "data/%s", entry->d_name);
+    int max_num = 0; // 用局部变量替代全局计数器
+    DIR *dir = opendir("data"); // 打开data目录，DIR为读取文件用的数据类型，若失败则返回NULL
+    if (dir!=NULL) {
+        for (struct dirent *temp = readdir(dir); temp != NULL; temp = readdir(dir)) {
+            struct stat st;  // 文件状态结构体
+            char path[600];  // 路径缓冲区
+            sprintf(path, "data/%s", temp->d_name);
             
-            // 检查是否为目录且不是 . 或 ..
-            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode) && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
-                
-                //试解析仓库编号以更新全局计数器
+            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode) && strcmp(temp->d_name, ".") != 0 && strcmp(temp->d_name, "..") != 0) {
+                // 检查当前查看的文件是否 不为文件夹，不为当前文件，不为上一级文件 若满足条件则读它的编号
                 int num;
-                if (sscanf(entry->d_name, "warehouse_%d", &num) == 1) {
-                    if (num > warehouse_number) warehouse_number = num;
+                if (sscanf(temp->d_name, "warehouse_%d", &num) == 1 && num > max_num) {
+                    max_num = num;
                 }
-                printf("  [Warehouse] %s\n", entry->d_name); // 显示仓库名
+                printf("  [Warehouse] %s\n", temp->d_name); // 打印仓库名
             }
         }
         closedir(dir); // 关闭目录
+        warehouse_number = max_num; // 仅更新一次
+    }
+    else{
+        printf("Error: Cannot open data directory\n");  // 若失败，则报错并返回
+        return;
     }
 
-    // Show options
-    printf("\n");
+    printf("\n");  // 显示文件名之后，打印操作提示
     printf("========== Main Menu ==========\n");
     printf(" [0] Create Warehouse\n");
     printf(" [1] Open Warehouse\n");
@@ -204,42 +184,37 @@ void show_maininterface() {  // 显示一级菜单
     printf("Please enter a number to operate: ");
 }
 
-/*
- * 函数：show_inside_warehoues
- * 功能：显示二级菜单（冰柜列表），列出指定仓库内的所有冰柜
- * 参数：target_warehouse_path - 目标仓库的路径
- */
-void show_inside_warehoues(char* target_warehouse_path) {
+void show_inside_warehoues(char* target_warehouse_path) {  // 显示二级菜单（仓库内的冰柜们），列出指定仓库内的所有冰柜 传入：仓库路径
     printf("\n=== Warehouse: %s ===\n", target_warehouse_path);
-    struct stat st;
-    // 检查仓库路径是否有效
-    if (stat(target_warehouse_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+    struct stat temp;  // 存放文件夹的属性信息
+    if (stat(target_warehouse_path, &temp) != 0 || !S_ISDIR(temp.st_mode)) {  // 若无法打开，则报错并返回
         printf("The warehouse does not exist.\n");
         return;
     }
 
-    DIR *dir = opendir(target_warehouse_path); // 打开仓库目录
+    DIR *dir = opendir(target_warehouse_path); // 打开目标仓库的文件夹
     int count = 0; // 变量：记录冰柜数量
     if (dir) {
-        struct dirent *entry;
-        for (entry = readdir(dir); entry != NULL; entry = readdir(dir)) {
-            struct stat st;
-            char path[512];
-            sprintf(path, "%s/%s", target_warehouse_path, entry->d_name);
-            // 检查是否为普通文件
-            if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-                char *dot = strrchr(entry->d_name, '.');
-                // 检查后缀名是否为 .txt
+        struct dirent *entry;  // 指向目录项的指针
+        for (entry = readdir(dir); entry != NULL; entry = readdir(dir)) {  // 遍历目标仓库的文件夹中的所有文件，直到下一个是null
+            struct stat temp;
+            char path[600];
+            sprintf(path, "%s/%s", target_warehouse_path, entry->d_name);  // 拼出完整的文件路径
+            if (stat(path, &temp) == 0 && S_ISREG(temp.st_mode)) {  // 判断文件是否存在，并检查是否为普通文件
+                char *dot = strrchr(entry->d_name, '.');  // 检查后缀名是否为 .txt，dot指向这个位置
                 if (dot && strcmp(dot, ".txt") == 0) {
-                    frezzer f;
-                    load_freezer_from_file(path, &f);
-                    printf("  [Freezer] %s  Temperature: %d C  Available: %d / 100\n",
-                           entry->d_name, f.frezzer_temperature, f.frezzer_available_volume);
+                    frezzer f;  // 新建一个冰柜变量
+                    load_freezer_from_file(path, &f);  // 初始化冰柜
+                    printf("  [Freezer] %s  Temperature: %d C  Available: %d / 100\n",entry->d_name, f.frezzer_temperature, f.frezzer_available_volume);
                     count++;
                 }
             }
         }
-        closedir(dir);
+        closedir(dir);  // 关闭目标仓库的文件夹
+    }
+    else{
+        printf("Error: Cannot open warehouse directory\n");  // 若失败，则报错并返回
+        return;
     }
     if (count == 0) printf("  (Empty)\n"); // 如果没有冰柜，提示为空
 
@@ -308,11 +283,11 @@ void remove_dir_recursive(const char *path) {
         buf = malloc(len); // 分配路径缓冲区内存
 
         if (buf) {
-            snprintf(buf, len, "%s/%s", path, p->d_name);
-            struct stat st;
-            if (stat(buf, &st) == 0) {
+            sprintf(buf, "%s/%s", path, p->d_name);
+            struct stat temp;
+            if (stat(buf, &temp) == 0) {
                 // 如果是目录则递归删除，否则直接删除文件
-                if (S_ISDIR(st.st_mode))
+                if (S_ISDIR(temp.st_mode))
                     remove_dir_recursive(buf);
                 else
                     remove(buf);
@@ -341,55 +316,51 @@ int main() {
     const int inside_warehouse_menu = 2; // 二级菜单：冰柜管理
     const int inside_frezzer_menu = 3;   // 三级菜单：食物管理
     
-    int current_menu = maininterface_menu; // 变量：当前所处的菜单层级
-    int choice = 0; // 变量：用户输入的选项
-    char target_warehouse_path[256];  // 变量：当前选中的仓库路径
-    char target_freezer_path[512];    // 变量：当前选中的冰柜文件路径
-    char current_freezer_name[100];   // 变量：当前选中的冰柜名称
+    int current_menu = maininterface_menu; // 记录当前所处的菜单层级
+    int choice = 0; // 记录用户输入的选项
+    char target_warehouse_path[600];  // 记录当前选中的仓库路径
+    char target_freezer_path[600];    // 记录当前选中的冰柜文件路径
+    char current_freezer_name[100];   // 记录当前选中的冰柜名称
 
-    frezzer current_frezzer; // 变量：当前操作的冰柜对象
-    frezzer_init(&current_frezzer); // 初始化冰柜对象
+    frezzer current_frezzer; // 记录当前操作的冰柜
+    frezzer_init(&current_frezzer); // 初始化冰柜
 
-    for (;;) {
-        // === 一级菜单逻辑 ===
+    for (;;) {  // 死循环：持续处理用户输入，直到用户选择退出
         if (current_menu == maininterface_menu) {
             show_maininterface(); // 显示一级菜单
             scanf("%d", &choice); // 读取用户输入
 
-            if (choice == -1) {
-                return 0; // 退出程序
-            } else if (choice == 0) {
-                // 创建新仓库
-                warehouse_number++; // 编号加1
-                char new_path[256];
-                sprintf(new_path, "data/warehouse_%d", warehouse_number);
-                if (_mkdir(new_path) == 0) {
-                    printf("Created warehouse_%d successfully.\n", warehouse_number);
+            if (choice == -1) {  // 退出程序
+                return 0;
+            } else if (choice == 0) {  // 创建新仓库
+                warehouse_number++;  // 更新仓库计数
+                char new_path[600];
+                sprintf(new_path, "data/warehouse_%d", warehouse_number);  // 拼出新仓库的路径
+                if (_mkdir(new_path) == 0) {  // 新建仓库文件夹
+                    printf("Created warehouse_%d successfully.\n", warehouse_number);  // 若创建成功，打印成功的提示
                 } else {
-                    printf("Failed to create warehouse (might already exist).\n");
+                    printf("Failed to create warehouse (might already exist).\n");  // 若创建失败，报错
                 }
-            } else if (choice == 1) {
-                // 打开仓库
-                printf("\nEnter the number of the warehouse to open: ");
-                int temp;
+            } else if (choice == 1) {  // 打开仓库
+                printf("\nEnter the number of the warehouse to open: ");  // 提示用户输入仓库编号
+                int temp;  // 记录用户输入的仓库编号
                 if (scanf("%d", &temp) == 1) {
                     sprintf(target_warehouse_path, "data/warehouse_%d", temp);
-                    struct stat st;
-                    if (stat(target_warehouse_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+                    struct stat temp;
+                    if (stat(target_warehouse_path, &temp) == 0 && S_ISDIR(temp.st_mode)) {
                         current_menu = inside_warehouse_menu; // 切换到二级菜单
                     } else {
                         printf("Warehouse not found!\n");
                     }
                 }
-            } else if (choice == 2) {
-                // 删除仓库
-                printf("\nEnter the number of the warehouse to delete: ");
-                int temp;
+            } else if (choice == 2) {  // 删除仓库
+                printf("\nEnter the number of the warehouse to delete: ");  // 提示用户输入仓库编号
+                int temp;  // 记录用户输入的仓库编号
                 if (scanf("%d", &temp) == 1) {
                     clear_buffer();
-                    char path[256];
+                    char path[600];
                     sprintf(path, "data/warehouse_%d", temp);
-                    printf("Deleting %s...\n", path);
+                    printf("Deleting data/warehouse_%d...\n", temp);
                     remove_dir_recursive(path); // 递归删除
                 }
             }
@@ -397,17 +368,19 @@ int main() {
         // === 二级菜单逻辑 ===
         else if (current_menu == inside_warehouse_menu) {
             show_inside_warehoues(target_warehouse_path); // 显示二级菜单
-            scanf("%d", &choice);
+            while (scanf("%d", &choice) != 1) {
+                clear_buffer();
+                printf("Invalid input. Please enter a number.\n");
+            }
 
-            if (choice == -1) {
-                current_menu = maininterface_menu; // 返回一级菜单
-            } else if (choice == 0) {
-                // 新建冰柜
-                printf("Enter number for new freezer: ");
+            if (choice == -1) {  // 返回一级菜单
+                current_menu = maininterface_menu;
+            } else if (choice == 0) {  // 新建冰柜
+                printf("\nEnter number for new freezer: ");  // 提示用户输入冰柜编号
                 int num;
                 if (scanf("%d", &num) == 1) {
                     clear_buffer();
-                    char path[512];
+                    char path[600];
                     sprintf(path, "%s/frezzer%d.txt", target_warehouse_path, num);
                     FILE* fp = fopen(path, "w");
                     if (fp) {
@@ -420,27 +393,25 @@ int main() {
                     clear_buffer();
                     printf("Invalid number.\n");
                 }
-            } else if (choice == 1) {
-                // 打开冰柜
-                printf("Enter freezer name to open (without .txt): ");
+            } else if (choice == 1) {  // 打开冰柜
+                printf("\nEnter freezer name to open (without .txt): ");  // 提示用户输入冰柜名称
                 char name[100];
                 scanf("%s", name);
                 sprintf(target_freezer_path, "%s/%s.txt", target_warehouse_path, name);
-                struct stat st;
-                if (stat(target_freezer_path, &st) == 0) {
+                struct stat temp;
+                if (stat(target_freezer_path, &temp) == 0) {
                     strcpy(current_freezer_name, name);
                     load_freezer_from_file(target_freezer_path, &current_frezzer); // 读取数据
                     current_menu = inside_frezzer_menu; // 切换到三级菜单
                 } else {
                     printf("Freezer not found.\n");
                 }
-            } else if (choice == 2) {
-                // 删除冰柜
-                printf("Enter number of freezer to delete: ");
+            } else if (choice == 2) {  // 删除冰柜
+                printf("\nEnter number of freezer to delete: ");  // 提示用户输入冰柜编号
                 int num;
                 if (scanf("%d", &num) == 1) {
                     clear_buffer();
-                    char path[512];
+                    char path[600];
                     sprintf(path, "%s/frezzer%d.txt", target_warehouse_path, num);
                     if (remove(path) == 0) printf("Deleted: frezzer%d\n", num);
                     else printf("Delete failed.\n");
@@ -453,20 +424,20 @@ int main() {
         // === 三级菜单逻辑 ===
         else if (current_menu == inside_frezzer_menu) {
             show_freezer_content(&current_frezzer, current_freezer_name); // 显示三级菜单
-            if (scanf("%d", &choice) != 1) choice = -999; clear_buffer();
+            for (choice = scanf("%d", &choice); choice != 1; choice = scanf("%d", &choice)) {
+                clear_buffer();
+             }
 
-            if (choice == -1) {
-                // 返回上一级并保存数据
+            if (choice == -1) {  // 返回上一级并保存数据
                 save_freezer_to_file(target_freezer_path, &current_frezzer);
                 free_list(current_frezzer.head); // 释放内存
                 current_menu = inside_warehouse_menu; // 返回二级菜单
-            } else if (choice == 0) {
-                // 添加食物
+            } else if (choice == 0) {  // 添加食物
                 food new_food;
-                printf("Enter Name: "); scanf("%s", new_food.food_name); clear_buffer();
-                printf("Enter Type (Veg/Meat/Fruit): "); scanf("%s", new_food.food_type); clear_buffer();
-                printf("Enter Volume: "); if(scanf("%d", &new_food.food_volume)!=1) new_food.food_volume=0; clear_buffer();
-                printf("Enter Temp: "); if(scanf("%d", &new_food.food_temperature)!=1) new_food.food_temperature=0; clear_buffer();
+                printf("\nEnter Name: "); scanf("%s", new_food.food_name); clear_buffer();  // 提示用户输入食物名称
+                printf("Enter Type (Veg/Meat/Fruit): "); scanf("%s", new_food.food_type); clear_buffer();  // 提示用户输入食物类型
+                printf("Enter Volume: "); if(scanf("%d", &new_food.food_volume)!=1) new_food.food_volume=0; clear_buffer();  // 提示用户输入食物体积
+                printf("Enter Temp: "); if(scanf("%d", &new_food.food_temperature)!=1) new_food.food_temperature=0; clear_buffer();  // 提示用户输入食物温度
 
                 // 检查约束条件
                 calculate_freezer_status(&current_frezzer); // 更新当前状态
@@ -497,9 +468,8 @@ int main() {
                 calculate_freezer_status(&current_frezzer);
                 sort_food_list(&current_frezzer);
 
-            } else if (choice == 1) {
-                // 删除食物
-                printf("Enter index to delete: ");
+            } else if (choice == 1) {  // 删除食物
+                printf("\nEnter index to delete: ");  // 提示用户输入要删除的食物序号
                 int idx;
                 if(scanf("%d", &idx)!=1) idx=-1; clear_buffer();
                 if (idx < 1) continue;
@@ -526,9 +496,8 @@ int main() {
                 if (!found_idx) {
                     printf("Invalid index.\n");
                 }
-            } else if (choice == 2) {
-                // 修改食物
-                printf("Enter index to modify: ");
+            } else if (choice == 2) {  // 修改食物
+                printf("\nEnter index to modify: ");  // 提示用户输入要修改的食物序号
                 int idx;
                 if(scanf("%d", &idx)!=1) idx=-1; clear_buffer();
                 
@@ -539,10 +508,10 @@ int main() {
                         food temp_food = curr->data;
                         printf("Modifying %s. Enter new details.\n", temp_food.food_name);
                         
-                        printf("New Name: "); scanf("%s", temp_food.food_name);
-                        printf("New Type: "); scanf("%s", temp_food.food_type);
-                        printf("New Volume: "); scanf("%d", &temp_food.food_volume);
-                        printf("New Temp: "); scanf("%d", &temp_food.food_temperature);
+                        printf("\nNew Name: "); scanf("%s", temp_food.food_name); clear_buffer();  // 提示用户输入新的食物名称
+                        printf("New Type: "); scanf("%s", temp_food.food_type); clear_buffer();  // 提示用户输入新的食物类型
+                        printf("New Volume: "); if(scanf("%d", &temp_food.food_volume)!=1) temp_food.food_volume=0; clear_buffer();  // 提示用户输入新的食物体积
+                        printf("New Temp: "); if(scanf("%d", &temp_food.food_temperature)!=1) temp_food.food_temperature=0; clear_buffer();  // 提示用户输入新的食物温度
                         
                         // 验证修改后的约束条件
                         int current_used = 100 - current_frezzer.frezzer_available_volume;
@@ -567,9 +536,8 @@ int main() {
                 if (!found_idx) {
                     printf("Invalid index.\n");
                 }
-            } else if (choice == 3) {
-                // 查询特定种类的食物
-                printf("Enter food type to query: ");
+            } else if (choice == 3) {  // 查询特定种类的食物
+                printf("\nEnter food type to query: ");  // 提示用户输入要查询的食物类型
                 char q_type[100];
                 scanf("%s", q_type); clear_buffer();
                 printf("\nMatches for '%s':\n", q_type);
