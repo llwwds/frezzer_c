@@ -123,50 +123,37 @@ void sort_food_list(frezzer* f) {  //对冰柜中的食物按照体积进行 降
     }
 }
 
-/*
- * 函数：save_freezer_to_file
- * 功能：将冰柜中的数据保存到指定文件
- * 参数：filepath - 文件路径
- * 参数：f - 指向冰柜结构体的指针
- */
-void save_freezer_to_file(char* filepath, frezzer* f) {
-    FILE* fp = fopen(filepath, "w"); // 以写模式打开文件
-    if (fp == NULL) {
+void save_freezer_to_file(char* filepath, frezzer* f) {  // 将链表中的内容写入文件，传入：文件路径 指向冰柜结构体的指针
+    FILE* fp = fopen(filepath, "w");  // 以写模式打开文件
+    if (fp == NULL) {  // 若找不到，报错
         printf("Error: Cannot save file %s\n", filepath);
         return;
     }
 
-    // 遍历链表，将每个食物的信息写入文件
-    for (node* curr = f->head; curr != NULL; curr = curr->next) {
+    for (node* temp = f->head; temp != NULL; temp = temp->next) {  // 遍历链表写入文件，文件中的顺序为：名字 类型 体积 温度\n
         fprintf(fp, "%s %s %d %d\n", 
-            curr->data.food_name, 
-            curr->data.food_type, 
-            curr->data.food_volume, 
-            curr->data.food_temperature);
+            temp->data.food_name, 
+            temp->data.food_type, 
+            temp->data.food_volume, 
+            temp->data.food_temperature);
     }
-    fclose(fp); // 关闭文件
+    fclose(fp);  // 关闭文件
 }
 
-/*
- * 函数：load_freezer_from_file
- * 功能：从指定文件读取数据并加载到冰柜结构体中
- * 参数：filepath - 文件路径
- * 参数：f - 指向冰柜结构体的指针
- */
-void load_freezer_from_file(char* filepath, frezzer* f) {
+void load_freezer_from_file(char* filepath, frezzer* f) {  // 读取指定文件，生成链表，并加载数据到链表中，传入：文件路径 指向冰柜结构体的指针
     frezzer_init(f); // 先初始化冰柜（清空旧数据）
     FILE* fp = fopen(filepath, "r"); // 以读模式打开文件
     if (fp == NULL) {
-        // 如果文件不存在（可能是新建的），直接返回
+        // 如果文件不存在，则报错并返回
+        printf("Error: Cannot find file %s\n", filepath);
         return;
     }
 
-    char name[100], type[100]; // 临时变量：存储读取的名称和类型
-    int vol, temp;             // 临时变量：存储读取的体积和温度
+    char name[100], type[100];  // 存读取到的名称和类型
+    int vol, temp;  // 存读取到的体积和温度
 
-    // 循环读取文件内容，每次读取4项数据
-    for (; fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4; ) {
-        node* new_node = create_node(&(f->head), &(f->tail)); // 创建新节点
+    for (; fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4; ) {  // 循环读取文件内容，每次读取4项数据
+        node* new_node = create_node(&(f->head), &(f->tail)); // 创建新节点，接下来读取并将内容写入新节点中
         strcpy(new_node->data.food_name, name);
         strcpy(new_node->data.food_type, type);
         new_node->data.food_volume = vol;
@@ -174,16 +161,11 @@ void load_freezer_from_file(char* filepath, frezzer* f) {
     }
     fclose(fp); // 关闭文件
     
-    // 读取完成后重新计算冰柜状态并排序
-    calculate_freezer_status(f);
+    calculate_freezer_status(f);  // 读取完成后重新计算冰柜状态并排序
     sort_food_list(f);
 }
 
-/*
- * 函数：show_maininterface
- * 功能：显示一级菜单（仓库列表），并提示用户操作
- */
-void show_maininterface() {
+void show_maininterface() {  // 显示一级菜单
     printf("\n=== Main Menu ===\n");
     printf("Welcome to llwwds' freezer management system\n");
     printf("\n");
@@ -198,11 +180,9 @@ void show_maininterface() {
             sprintf(path, "data/%s", entry->d_name);
             
             // 检查是否为目录且不是 . 或 ..
-            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode) &&
-                strcmp(entry->d_name, ".") != 0 &&
-                strcmp(entry->d_name, "..") != 0) {
+            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode) && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                 
-                // 尝试解析仓库编号以更新全局计数器
+                //试解析仓库编号以更新全局计数器
                 int num;
                 if (sscanf(entry->d_name, "warehouse_%d", &num) == 1) {
                     if (num > warehouse_number) warehouse_number = num;
