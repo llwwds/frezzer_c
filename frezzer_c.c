@@ -37,27 +37,20 @@ typedef struct frezzer {
  * 参数：f - 指向需要初始化的冰柜结构体的指针
  */
 void frezzer_init(frezzer* f) {  // 初始化冰柜结构体
-    f->head = NULL;                  // 初始化头指针为空
-    f->tail = NULL;                  // 初始化尾指针为空
+    f->head = NULL;  // 初始化头指针为空
+    f->tail = NULL;  // 初始化尾指针为空
     f->frezzer_temperature = 10;  // 最高允许温度10度
     f->frezzer_available_volume = 100;  // 可用容积最大值100
 }
 
-/*
- * 函数：create_node
- * 功能：创建一个新的链表节点，并将其添加到链表尾部
- * 参数：head - 指向链表头指针的二级指针
- * 参数：tail - 指向链表尾指针的二级指针
- * 返回值：返回新创建的节点指针
- */
-node* create_node(node** head, node** tail) {
-    node* temp = (node*)malloc(sizeof(node)); // 分配新节点内存
+node* create_node(node** head, node** tail) {  //新建链节并尾插，传入head和tail的二级指针
+    node* temp = (node*)malloc(sizeof(node)); // 新建节点
     if (*head == NULL) {
-        // 如果链表为空，新节点即为头节点和尾节点
+        // 如果链表为空，head和tail指向新节点
         *head = temp;
         *tail = temp;
     } else {
-        // 否则将新节点链接到尾部，并更新尾指针
+        // 若链表不空，则尾插，并更新tail
         (*tail)->next = temp;
         *tail = temp;
     }
@@ -69,38 +62,29 @@ node* create_node(node** head, node** tail) {
     temp->data.food_volume = 0;
     temp->next = NULL;
 
-    return temp;
+    return temp;  // 返回指向新节点的指针
 }
 
 
 void free_list(node* head) {  //释放整个链表，不释放头指针（在frezzer里），传入头指针
-    node* current = head; // 当前处理的节点
-    while (current != NULL) {
-        node* next = current->next; // 保存下一个节点的地址
-        free(current);              // 释放当前节点
-        current = next;             // 移动到下一个节点
+    for (node *current = head, *next; current != NULL; current = next) { // 当前处理的节点
+        next = current->next;  // 保存下一个节点的地址
+        free(current);  // 释放当前节点
     }
 }
 
-/*
- * 函数：calculate_freezer_status
- * 功能：根据链表中的食物，重新计算冰柜的剩余容积和温度
- * 参数：f - 指向冰柜结构体的指针
- */
-void calculate_freezer_status(frezzer* f) {
-    int used_volume = 0; // 变量：已使用的容积
-    int min_temp = 10;   // 变量：最低所需温度，初始设为最高允许值10度
-    int has_food = 0;    // 变量：标记冰柜中是否有食物
+void calculate_freezer_status(frezzer* f) {  // 计算冰柜的剩余容积和温度，每次更改冰柜中食物调用 传入指向冰柜的指针 无返
+    int used_volume = 0;  // 已使用的容积
+    int min_temp = 10;  // 最低所需温度，初值为10
+    int has_food = 0;  // 标记冰柜中是否有食物
 
-    node* curr = f->head; // 遍历指针
-    while (curr != NULL) {
+    for (node* temp = f->head; temp != NULL; temp = temp->next) { // 遍历指针
         has_food = 1;
-        used_volume += curr->data.food_volume; // 累加体积
+        used_volume += temp->data.food_volume; // 累加体积
         // 找到所有食物中要求的最低温度
-        if (curr->data.food_temperature < min_temp) {
-            min_temp = curr->data.food_temperature;
+        if (temp->data.food_temperature < min_temp) {
+            min_temp = temp->data.food_temperature;
         }
-        curr = curr->next;
     }
 
     // 更新剩余容积
@@ -126,11 +110,10 @@ void sort_food_list(frezzer* f) {
     node* ptr1;     // 变量：用于遍历的指针
     node* lptr = NULL; // 变量：指向已排序部分的开始位置
 
-    do {
+    for (swapped = 1; swapped; ) {
         swapped = 0;
-        ptr1 = f->head;
-
-        while (ptr1->next != lptr) {
+        
+        for (ptr1 = f->head; ptr1->next != lptr; ptr1 = ptr1->next) { // 变量：用于遍历的指针
             // 如果当前节点体积小于下一个节点体积，则交换数据（降序）
             if (ptr1->data.food_volume < ptr1->next->data.food_volume) {
                 food temp = ptr1->data;
@@ -138,10 +121,9 @@ void sort_food_list(frezzer* f) {
                 ptr1->next->data = temp;
                 swapped = 1;
             }
-            ptr1 = ptr1->next;
         }
         lptr = ptr1; // 更新已排序边界
-    } while (swapped);
+    }
 }
 
 /*
@@ -158,14 +140,12 @@ void save_freezer_to_file(const char* filepath, frezzer* f) {
     }
 
     // 遍历链表，将每个食物的信息写入文件
-    node* curr = f->head;
-    while (curr != NULL) {
+    for (node* curr = f->head; curr != NULL; curr = curr->next) {
         fprintf(fp, "%s %s %d %d\n", 
             curr->data.food_name, 
             curr->data.food_type, 
             curr->data.food_volume, 
             curr->data.food_temperature);
-        curr = curr->next;
     }
     fclose(fp); // 关闭文件
 }
@@ -188,7 +168,7 @@ void load_freezer_from_file(const char* filepath, frezzer* f) {
     int vol, temp;             // 临时变量：存储读取的体积和温度
 
     // 循环读取文件内容，每次读取4项数据
-    while (fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4) {
+    for (; fscanf(fp, "%s %s %d %d", name, type, &vol, &temp) == 4; ) {
         node* new_node = create_node(&(f->head), &(f->tail)); // 创建新节点
         strcpy(new_node->data.food_name, name);
         strcpy(new_node->data.food_type, type);
@@ -215,7 +195,7 @@ void show_maininterface() {
     DIR *dir = opendir("data"); // 打开data目录
     if (dir) {
         struct dirent *entry; // 目录项指针
-        while ((entry = readdir(dir)) != NULL) {
+        for (entry = readdir(dir); entry != NULL; entry = readdir(dir)) {
             struct stat st; // 文件状态结构体
             char path[512]; // 路径缓冲区
             sprintf(path, "data/%s", entry->d_name);
@@ -265,7 +245,7 @@ void show_inside_warehoues(char* target_warehouse_path) {
     int count = 0; // 变量：记录冰柜数量
     if (dir) {
         struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
+        for (entry = readdir(dir); entry != NULL; entry = readdir(dir)) {
             struct stat st;
             char path[512];
             sprintf(path, "%s/%s", target_warehouse_path, entry->d_name);
@@ -310,11 +290,9 @@ void show_freezer_content(frezzer* f, const char* freezer_name) {
     printf("%-20s %-10s %-10s %-10s\n", "Name", "Type", "Volume", "Temp");
     printf("----------------------------------------------------\n");
     
-    node* curr = f->head; // 遍历指针
     int idx = 0;          // 变量：食物序号
-    while (curr != NULL) {
+    for (node* curr = f->head; curr != NULL; curr = curr->next) { // 遍历指针
         printf("%d. %-17s %-10s %-10d %-10d\n", ++idx, curr->data.food_name, curr->data.food_type, curr->data.food_volume, curr->data.food_temperature);
-        curr = curr->next;
     }
 
     // Show options
@@ -341,7 +319,7 @@ void remove_dir_recursive(const char *path) {
 
     if (!d) return; // 打开失败直接返回
 
-    while ((p = readdir(d)) != NULL) {
+    for (p = readdir(d); p != NULL; p = readdir(d)) {
         char *buf;
         size_t len;
 
@@ -375,7 +353,7 @@ void remove_dir_recursive(const char *path) {
  */
 void clear_buffer() {
     int c;
-    while ((c = getchar()) != '\n' && c != EOF);
+    for (c = getchar(); c != '\n' && c != EOF; c = getchar());
 }
 
 /*
@@ -397,7 +375,7 @@ int main() {
     frezzer current_frezzer; // 变量：当前操作的冰柜对象
     frezzer_init(&current_frezzer); // 初始化冰柜对象
 
-    while (1) {
+    for (;;) {
         // === 一级菜单逻辑 ===
         if (current_menu == maininterface_menu) {
             show_maininterface(); // 显示一级菜单
@@ -551,27 +529,26 @@ int main() {
                 if(scanf("%d", &idx)!=1) idx=-1; clear_buffer();
                 if (idx < 1) continue;
 
-                node* curr = current_frezzer.head;
-                node* prev = NULL;
                 int count = 1;
                 // 寻找指定序号的节点
-                while (curr != NULL && count < idx) {
-                    prev = curr;
-                    curr = curr->next;
-                    count++;
+                int found_idx = 0;
+                for (node *curr = current_frezzer.head, *prev = NULL; curr != NULL; prev = curr, curr = curr->next, count++) {
+                   if (count == idx) {
+                        if (prev == NULL) { // 删除的是头节点
+                            current_frezzer.head = curr->next;
+                            if (current_frezzer.head == NULL) current_frezzer.tail = NULL;
+                        } else {
+                            prev->next = curr->next;
+                            if (prev->next == NULL) current_frezzer.tail = prev;
+                        }
+                        free(curr); // 释放节点内存
+                        printf("Deleted.\n");
+                        calculate_freezer_status(&current_frezzer);
+                        found_idx = 1;
+                        break;
+                   }
                 }
-                if (curr != NULL) {
-                    if (prev == NULL) { // 删除的是头节点
-                        current_frezzer.head = curr->next;
-                        if (current_frezzer.head == NULL) current_frezzer.tail = NULL;
-                    } else {
-                        prev->next = curr->next;
-                        if (prev->next == NULL) current_frezzer.tail = prev;
-                    }
-                    free(curr); // 释放节点内存
-                    printf("Deleted.\n");
-                    calculate_freezer_status(&current_frezzer);
-                } else {
+                if (!found_idx) {
                     printf("Invalid index.\n");
                 }
             } else if (choice == 2) {
@@ -580,38 +557,39 @@ int main() {
                 int idx;
                 if(scanf("%d", &idx)!=1) idx=-1; clear_buffer();
                 
-                node* curr = current_frezzer.head;
                 int count = 1;
-                while (curr != NULL && count < idx) {
-                    curr = curr->next;
-                    count++;
+                int found_idx = 0;
+                for (node* curr = current_frezzer.head; curr != NULL; curr = curr->next, count++) {
+                    if (count == idx) {
+                        food temp_food = curr->data;
+                        printf("Modifying %s. Enter new details.\n", temp_food.food_name);
+                        
+                        printf("New Name: "); scanf("%s", temp_food.food_name);
+                        printf("New Type: "); scanf("%s", temp_food.food_type);
+                        printf("New Volume: "); scanf("%d", &temp_food.food_volume);
+                        printf("New Temp: "); scanf("%d", &temp_food.food_temperature);
+                        
+                        // 验证修改后的约束条件
+                        int current_used = 100 - current_frezzer.frezzer_available_volume;
+                        int other_used = current_used - curr->data.food_volume;
+                        int new_avail = 100 - other_used;
+                        
+                        if (temp_food.food_volume > new_avail) {
+                            printf("Error: Not enough space for modification.\n");
+                        } else if (temp_food.food_temperature < -20 || temp_food.food_temperature > 10) {
+                            printf("Error: Invalid temperature.\n");
+                        } else {
+                            curr->data = temp_food; // 更新数据
+                            printf("Modified.\n");
+                            calculate_freezer_status(&current_frezzer);
+                            sort_food_list(&current_frezzer);
+                        }
+                        found_idx = 1;
+                        break;
+                    }
                 }
                 
-                if (curr != NULL) {
-                    food temp_food = curr->data;
-                    printf("Modifying %s. Enter new details.\n", temp_food.food_name);
-                    
-                    printf("New Name: "); scanf("%s", temp_food.food_name);
-                    printf("New Type: "); scanf("%s", temp_food.food_type);
-                    printf("New Volume: "); scanf("%d", &temp_food.food_volume);
-                    printf("New Temp: "); scanf("%d", &temp_food.food_temperature);
-                    
-                    // 验证修改后的约束条件
-                    int current_used = 100 - current_frezzer.frezzer_available_volume;
-                    int other_used = current_used - curr->data.food_volume;
-                    int new_avail = 100 - other_used;
-                    
-                    if (temp_food.food_volume > new_avail) {
-                        printf("Error: Not enough space for modification.\n");
-                    } else if (temp_food.food_temperature < -20 || temp_food.food_temperature > 10) {
-                        printf("Error: Invalid temperature.\n");
-                    } else {
-                        curr->data = temp_food; // 更新数据
-                        printf("Modified.\n");
-                        calculate_freezer_status(&current_frezzer);
-                        sort_food_list(&current_frezzer);
-                    }
-                } else {
+                if (!found_idx) {
                     printf("Invalid index.\n");
                 }
             } else if (choice == 3) {
@@ -620,14 +598,12 @@ int main() {
                 char q_type[100];
                 scanf("%s", q_type); clear_buffer();
                 printf("\nMatches for '%s':\n", q_type);
-                node* curr = current_frezzer.head;
                 int found = 0;
-                while(curr != NULL) {
+                for (node* curr = current_frezzer.head; curr != NULL; curr = curr->next) {
                     if (strcmp(curr->data.food_type, q_type) == 0) {
                          printf("  %s (Vol: %d, Temp: %d)\n", curr->data.food_name, curr->data.food_volume, curr->data.food_temperature);
                          found = 1;
                     }
-                    curr = curr->next;
                 }
                 if (!found) printf("  None found.\n");
                 printf("\nPress 1 to continue...");
