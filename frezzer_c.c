@@ -3,11 +3,9 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
 #include <direct.h>
 
-// 全局变量：仓库数量，用于生成新仓库的命名编号
-int warehouse_number = 0;
+int warehouse_number = 0;  // 全局变量：仓库数量，用于生成新仓库的命名编号
 
 // 结构体：食物信息
 typedef struct food {
@@ -73,56 +71,55 @@ void free_list(node* head) {  //释放整个链表，不释放头指针（在fre
     }
 }
 
-void calculate_freezer_status(frezzer* f) {  // 计算冰柜的剩余容积和温度，每次更改冰柜中食物调用 传入指向冰柜的指针 无返
-    int used_volume = 0;  // 已使用的容积
-    int min_temp = 10;  // 最低所需温度，初值为10
-    int has_food = 0;  // 标记冰柜中是否有食物
+void calculate_freezer_status(frezzer* f) {  // 计算冰柜的剩余容积和温度，更改冰柜中食物时调用 传入指向冰柜的指针 无返
+    int used_volume = 0;  // 记录已使用的容积
+    int min_temp = 10;  // 记录最低温度，初值为10
 
-    for (node* temp = f->head; temp != NULL; temp = temp->next) { // 遍历指针
-        has_food = 1;
+    for (node* temp = f->head; temp != NULL; temp = temp->next) { // 遍历冰柜
         used_volume += temp->data.food_volume; // 累加体积
-        // 找到所有食物中要求的最低温度
-        if (temp->data.food_temperature < min_temp) {
+        if (temp->data.food_temperature < min_temp) {  // 求最小温度
             min_temp = temp->data.food_temperature;
         }
     }
 
-    // 更新剩余容积
-    f->frezzer_available_volume = 100 - used_volume;
+    f->frezzer_available_volume = 100 - used_volume;  // 更新冰柜体积
+    f->frezzer_temperature=min_temp;// 更新冰柜温度
+}
+
+int cmp(const void *a, const void *b) {  // qsort用的排序函数
+    // 将 void* 指针转换为 food* 指针
+    const food *food_a = (const food *)a;
+    const food *food_b = (const food *)b;
     
-    // 更新冰柜温度：如果有食物则为最低所需温度，否则为默认10度
-    if (has_food) {
-        f->frezzer_temperature = min_temp;
-    } else {
-        f->frezzer_temperature = 10;
+    // 降序排序：如果 a.volume < b.volume，则返回正数（表示 a 应该排在 b 后面）
+    // 本质上是：b.volume - a.volume
+    if (food_a->food_volume <= food_b->food_volume){
+        return 1;
+    }else{
+        return -1;
     }
 }
 
-/*
- * 函数：sort_food_list
- * 功能：对冰柜中的食物链表按体积进行降序排序（冒泡排序）
- * 参数：f - 指向冰柜结构体的指针
- */
-void sort_food_list(frezzer* f) {
-    if (f->head == NULL || f->head->next == NULL) return; // 空链表或单节点无需排序
+void sort_food_list(frezzer* f) {  //对冰柜中的食物按照体积进行 降序排序 传入指向冰柜变量的指针
+    if (f->head == NULL || f->head->next == NULL) return; // 若为空链表/单节点，不用排序
 
-    int swapped;    // 变量：标记本轮是否发生了交换
-    node* ptr1;     // 变量：用于遍历的指针
-    node* lptr = NULL; // 变量：指向已排序部分的开始位置
+    food temp_data[100];  // 暂时记录链表中全部数据
+    int tag=0;  // 临时变量，用两次
 
-    for (swapped = 1; swapped; ) {
-        swapped = 0;
-        
-        for (ptr1 = f->head; ptr1->next != lptr; ptr1 = ptr1->next) { // 变量：用于遍历的指针
-            // 如果当前节点体积小于下一个节点体积，则交换数据（降序）
-            if (ptr1->data.food_volume < ptr1->next->data.food_volume) {
-                food temp = ptr1->data;
-                ptr1->data = ptr1->next->data;
-                ptr1->next->data = temp;
-                swapped = 1;
-            }
-        }
-        lptr = ptr1; // 更新已排序边界
+    for(int i=0;i<100;i++)  // 初始化数组
+    {
+        temp_data[i].food_volume=0;
+    }
+
+    for(node*temp=f->head;temp!=NULL;temp=temp->next){  // 将链表中全部数据都写入数组
+        temp_data[tag]=temp->data;
+        tag++;
+    }
+    qsort(temp_data, 100, sizeof(food), cmp);  // 对数组用qsort排序
+    tag=0;
+    for(node*temp=f->head;temp!=NULL;temp=temp->next){  // 将降序排序的数组从前往后写回链表
+        temp->data=temp_data[tag];
+        tag++;
     }
 }
 
@@ -132,7 +129,7 @@ void sort_food_list(frezzer* f) {
  * 参数：filepath - 文件路径
  * 参数：f - 指向冰柜结构体的指针
  */
-void save_freezer_to_file(const char* filepath, frezzer* f) {
+void save_freezer_to_file(char* filepath, frezzer* f) {
     FILE* fp = fopen(filepath, "w"); // 以写模式打开文件
     if (fp == NULL) {
         printf("Error: Cannot save file %s\n", filepath);
@@ -156,7 +153,7 @@ void save_freezer_to_file(const char* filepath, frezzer* f) {
  * 参数：filepath - 文件路径
  * 参数：f - 指向冰柜结构体的指针
  */
-void load_freezer_from_file(const char* filepath, frezzer* f) {
+void load_freezer_from_file(char* filepath, frezzer* f) {
     frezzer_init(f); // 先初始化冰柜（清空旧数据）
     FILE* fp = fopen(filepath, "r"); // 以读模式打开文件
     if (fp == NULL) {
@@ -356,10 +353,8 @@ void clear_buffer() {
     for (c = getchar(); c != '\n' && c != EOF; c = getchar());
 }
 
-/*
- * 函数：main
- * 功能：程序入口，主循环控制各级菜单的切换
- */
+// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 int main() {
     // 常量：定义菜单层级的状态码
     const int maininterface_menu = 1;  // 一级菜单：仓库管理
